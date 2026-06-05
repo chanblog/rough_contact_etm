@@ -193,6 +193,12 @@ This workflow may be useful for exploratory studies of:
 - Surface evolution due to wear, melting, oxidation, or material removal is not included.
 - The code has been cleaned for open-source release, but it remains research code and should be validated for each new use case.
 
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening issues or pull requests.
+
+This project follows a [Code of Conduct](CODE_OF_CONDUCT.md) to support respectful and constructive technical discussion.
+
 ## License
 
 This repository is released under `AGPL-3.0-or-later`.
