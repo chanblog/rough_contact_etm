@@ -6,6 +6,14 @@ The current implementation targets a rigid rough surface pressed against an elas
 
 This repository is intended as reproducible research code rather than a polished general-purpose commercial solver.
 
+Here is a simple comparison of calculation results，
+
+![Calculation results of this project](./rigid_on_elastic_contact_results/post_processing_plots/summary_evolution_curves.png)
+
+![Calculation results of literature](./rigid_on_elastic_contact_results/post_processing_plots/p.png)
+
+[Click here for source of literature results](https://www.sciencedirect.com/science/article/abs/pii/S0017931024003235)
+
 ## Main features
 
 - Random-phase rough surface generation using a power-law roughness spectrum through Tamaas.
