@@ -1,5 +1,7 @@
 # rough-contact-etm
 
+[![tests](https://github.com/chanblog/rough_contact_etm/actions/workflows/tests.yml/badge.svg)](https://github.com/chanblog/rough_contact_etm/actions/workflows/tests.yml)
+
 `rough-contact-etm` is a research-oriented Python workflow for thermo-electro-mechanical (E-T-M) simulations of rough surface contact. It couples a mechanical rough-contact solve from [Tamaas](https://gitlab.com/tamaas/tamaas) with FFT-based electrical and thermal Green's-function post-processing.
 
 The current implementation targets a rigid rough surface pressed against an elastic conducting body. For each load step, the code computes the real contact area, an interfacial electrical current-density field, Joule heat generation, a surface temperature field, and the thermally induced normal displacement that feeds back into the contact geometry.
