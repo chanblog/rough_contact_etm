@@ -12,9 +12,9 @@ Here is a simple comparison of calculation results，
 
 ![Calculation results of this project](./rigid_on_elastic_contact_results/post_processing_plots/summary_evolution_curves.png)
 
-![Calculation results of literature](./rigid_on_elastic_contact_results/post_processing_plots/p.png)
+[Click here to view the verifiable and comparable literature of this project](https://www.sciencedirect.com/science/article/abs/pii/S0017931024003235)
 
-[Click here for source of literature results](https://www.sciencedirect.com/science/article/abs/pii/S0017931024003235)
+In general, our calculation results are consistent with those from most existing literature in terms of order of magnitude, while slight discrepancies can be observed in point-by-point comparisons due to differing parameter selections in numerical computations.
 
 ## Main features
 
