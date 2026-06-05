@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+.DS_Store
+
+# Simulation outputs
+hdf5/
+rigid_on_elastic_contact_results/
+minimal_contact_results/
+*.h5
+*.npy
+*.png

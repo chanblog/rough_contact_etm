@@ -1,0 +1,15 @@
+rough-contact-etm
+
+Copyright (C) 2026 MC L
+
+This project is licensed under the GNU Affero General Public License version 3
+or, at your option, any later version (SPDX-License-Identifier:
+AGPL-3.0-or-later). The full AGPLv3 license text is provided in LICENSE.
+
+This project uses Tamaas for rough-surface mechanical contact calculations.
+Tamaas is distributed separately and is licensed under the GNU Affero General
+Public License v3 according to its public GitLab project page. This repository
+does not vendor Tamaas source code.
+
+Users are responsible for installing Tamaas and complying with the licenses of
+Tamaas and all other dependencies.

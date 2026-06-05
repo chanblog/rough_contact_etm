@@ -1,0 +1,12 @@
+name: rough-contact-etm
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - numpy
+  - matplotlib
+  - h5py
+  - pytest
+  # Install Tamaas according to the official project documentation.
+  # The package is not listed here because availability may depend on platform
+  # and installation channel.

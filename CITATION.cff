@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this research code, please cite the repository and the underlying Tamaas project."
+title: "rough-contact-etm: Thermo-electro-mechanical rough contact simulations"
+version: 0.1.0
+authors:
+  - family-names: "L"
+    given-names: "MC"
+license: AGPL-3.0-or-later
