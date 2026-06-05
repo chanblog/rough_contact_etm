@@ -31,7 +31,7 @@ contact_mask = traction > 0.
 The interfacial conductance per unit area is modeled as
 
 ```text
-k_E = 1 / (rho_film * l_film).
+k_E,j = 1 / (rho_film * l_film + rho_elastic * pi * r_j / 2), where r_j = sqrt(A_j / pi) is the equivalent radius of a connected contact spot. If include_constriction_resistance is disabled, this reduces to k_E = 1 / (rho_film * l_film).
 ```
 
 At contact nodes, the local current density is updated from the film voltage drop:

@@ -22,30 +22,53 @@ def _require_tamaas():
     return tm, H5Dumper
 
 
-def _estimate_contact_area(model, domain_area: float) -> dict[str, float | int]:
+def _estimate_contact_area(model, domain_area: float) -> dict[str, float | int | bool]:
     tm, _ = _require_tamaas()
-    pressure = np.asarray(model.traction, dtype=float)
+
+    # Keep the original Tamaas GridWrap for Tamaas statistics.  Converting it to
+    # np.ndarray is fine for simple node counting, but tm.Statistics2D.contact()
+    # requires the original GridWrap object.
+    traction_grid = model.traction
+    pressure = np.asarray(traction_grid, dtype=float)
+
     contact_nodes = int(np.count_nonzero(pressure > 0.0))
     total_nodes = int(pressure.size)
+    node_area_fraction = contact_nodes / total_nodes if total_nodes else 0.0
 
     output = {
-        "contact_area_fraction": contact_nodes / total_nodes if total_nodes else 0.0,
-        "contact_area_absolute_m2": domain_area * contact_nodes / total_nodes if total_nodes else 0.0,
+        "contact_area_fraction": node_area_fraction,
+        "contact_area_absolute_m2": domain_area * node_area_fraction,
         "contact_cluster_count": 0,
+        "contact_perimeter_segments": 0,
         "contact_nodes": contact_nodes,
         "total_nodes": total_nodes,
+        "contact_area_uses_tamaas_correction": False,
     }
 
     try:
-        contact_mask = pressure > 0.0
+        # Follow the Tamaas API: FloodFill works on the GridWrap contact mask,
+        # and Statistics2D.contact expects (tractions: GridWrap, perimeter: int).
+        try:
+            contact_mask = traction_grid > 0.0
+        except TypeError:
+            # Some Tamaas/Python combinations expose only the NumPy comparison.
+            contact_mask = pressure > 0.0
         clusters = tm.FloodFill.getClusters(contact_mask, False)
-        total_perimeter = float(np.sum([cluster.perimeter for cluster in clusters]))
-        area_fraction = float(tm.Statistics2D.contact(pressure, total_perimeter))
+        perimeter_segments = int(sum(int(cluster.perimeter) for cluster in clusters))
+
+        output.update(
+            {
+                "contact_cluster_count": int(len(clusters)),
+                "contact_perimeter_segments": perimeter_segments,
+            }
+        )
+
+        area_fraction = float(tm.Statistics2D.contact(traction_grid, perimeter_segments))
         output.update(
             {
                 "contact_area_fraction": area_fraction,
                 "contact_area_absolute_m2": area_fraction * domain_area,
-                "contact_cluster_count": len(clusters),
+                "contact_area_uses_tamaas_correction": True,
             }
         )
     except Exception as exc:
@@ -86,26 +109,35 @@ def _save_step_results(final_state: dict, history: list[float], s_geom: np.ndarr
     print(f"  > Real contact area fraction: {stats['contact_area_fraction']:.6f}")
     print(f"  > Real contact area: {stats['contact_area_absolute_m2'] * 1e6:.6f} mm^2")
 
-    model["temperature"] = final_state["temperature"]
-    model["heat_flux"] = final_state["heat_flux"]
-    model["voltage"] = final_state["voltage"]
-    model["current_density"] = final_state["current_density"]
-    model["thermal_displacement"] = final_state["thermal_displacement"]
-    model["geom_surface"] = s_geom
-
     step_basename = os.path.join(config.output_dir, f"step_{step_num:03d}_F_{load:.1f}N_solution")
-    dumper = H5Dumper(
-        step_basename,
-        "temperature",
-        "heat_flux",
-        "voltage",
-        "current_density",
-        "thermal_displacement",
-        "geom_surface",
-        all_fields=True,
-    )
+
+    # Let Tamaas dump only its native mechanical fields.  Custom NumPy fields are
+    # written explicitly below with h5py.  This avoids a Tamaas H5Dumper field-name
+    # collision/uninitialised-buffer issue observed for the name "temperature",
+    # which can otherwise produce values of order 1e308 in the saved HDF5 file even
+    # though the thermal solver returned a finite field.
+    dumper = H5Dumper(step_basename, all_fields=True)
     model.addDumper(dumper)
     model.dump()
+
+    # Tamaas writes the actual field data under config.hdf5_dump_dir with a
+    # _0000 suffix.  Overwrite/add custom fields there directly so post-processing
+    # reads exactly the arrays produced by the coupled solver.
+    data_hdf5_path = os.path.join(config.hdf5_dump_dir, f"{os.path.basename(step_basename)}_0000.h5")
+    custom_fields = {
+        "temperature": final_state["temperature"],
+        "heat_flux": final_state["heat_flux"],
+        "voltage": final_state["voltage"],
+        "current_density": final_state["current_density"],
+        "thermal_displacement": final_state["thermal_displacement"],
+        "geom_surface": s_geom,
+    }
+    with h5py.File(data_hdf5_path, "a") as h5_data:
+        for field_name, field_value in custom_fields.items():
+            array = np.asarray(field_value, dtype=float)
+            if field_name in h5_data:
+                del h5_data[field_name]
+            h5_data.create_dataset(field_name, data=array)
 
     hdf5_path = f"{step_basename}.h5"
     final_error = history[-1] if history else float("inf")

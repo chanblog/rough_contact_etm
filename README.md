@@ -25,7 +25,7 @@ The implementation deliberately uses a compact physical model. The main assumpti
 2. **Periodic rough surface.** The mechanical and FFT-based field calculations are formulated on a periodic rectangular grid.
 3. **Normal contact only.** Tangential tractions, sliding, frictional heating, adhesion, plasticity, and wear are not included in the default workflow.
 4. **Contact-mask electrical conduction.** Electrical current flows only through grid nodes with positive mechanical contact pressure.
-5. **Thin-film interfacial conductance.** The interfacial conductance is modeled as `k_E = 1 / (rho_film * l_film)`. The current version does not include pressure-dependent constriction resistance or a fully resolved oxide/lubricant breakdown model.
+5. **Thin-film interfacial conductance.** The default interfacial conductance uses a film-plus-constriction specific resistance, `k_E,j = 1 / (rho_film * l_film + rho_elastic * pi * r_j / 2)`, where `r_j = sqrt(A_j / pi)` is the equivalent radius of each connected contact spot. Set `include_constriction_resistance = False` to recover the thin-film-only model `k_E = 1 / (rho_film * l_film)`. The current version does not include a fully resolved oxide/lubricant breakdown model.
 6. **Finite-layer electrical and thermal kernels.** The electrical potential and thermal response are evaluated with finite-height Green's-function kernels using the layer height `h0`.
 7. **Quasi-static coupling.** The E-T-M coupling is a fixed-point iteration at each load step. Transient heat diffusion, inertia, and time-dependent surface evolution are not included.
 8. **Joule heat partitioning.** A constant heat partition coefficient `heat_partition` assigns a specified fraction of interfacial Joule heat to the modeled body.

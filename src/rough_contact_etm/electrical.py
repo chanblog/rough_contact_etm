@@ -40,6 +40,110 @@ def _validate_pressure_map(pressure_map: np.ndarray) -> np.ndarray:
     return pressure_map
 
 
+
+
+def _contact_neighbors_8(i: int, j: int, nx: int, ny: int):
+    """Yield 8-connected in-domain neighbours of a contact node."""
+    for di in (-1, 0, 1):
+        for dj in (-1, 0, 1):
+            if di == 0 and dj == 0:
+                continue
+            ii = i + di
+            jj = j + dj
+            if 0 <= ii < nx and 0 <= jj < ny:
+                yield ii, jj
+
+
+def build_contact_conductance_map(pressure_map: np.ndarray) -> tuple[np.ndarray, dict[str, float | int]]:
+    """Build the local interfacial conductance map ``k_E(x, y)``.
+
+    The default model follows the rough-surface validation setting in Li et al.
+    and assigns one conductance value to every connected contact spot,
+
+        k_E,j = 1 / (rho_film * l_film + rho_elastic * pi * r_j / 2),
+
+    where ``r_j = sqrt(A_j / pi)`` is the equivalent circular radius of the
+    connected contact spot.  If ``config.include_constriction_resistance`` is
+    false, the model reduces to the thin-film-only conductance
+    ``1 / (rho_film * l_film)``.
+    """
+    pressure_map = _validate_pressure_map(pressure_map)
+    nx, ny = pressure_map.shape
+    dx = config.L_x / nx
+    dy = config.L_y / ny
+
+    contact_mask = pressure_map > 0.0
+    k_map = np.zeros_like(pressure_map, dtype=float)
+    film_specific_resistance = config.rho_film * config.l_film
+
+    if not np.any(contact_mask):
+        return k_map, {
+            "electrical_contact_clusters": 0,
+            "electrical_min_spot_radius_m": 0.0,
+            "electrical_max_spot_radius_m": 0.0,
+            "electrical_mean_spot_radius_m": 0.0,
+            "electrical_min_kE_S_per_m2": 0.0,
+            "electrical_max_kE_S_per_m2": 0.0,
+        }
+
+    if not bool(getattr(config, "include_constriction_resistance", False)):
+        k_value = 1.0 / film_specific_resistance
+        k_map[contact_mask] = k_value
+        return k_map, {
+            "electrical_contact_clusters": 1,
+            "electrical_min_spot_radius_m": 0.0,
+            "electrical_max_spot_radius_m": 0.0,
+            "electrical_mean_spot_radius_m": 0.0,
+            "electrical_min_kE_S_per_m2": float(k_value),
+            "electrical_max_kE_S_per_m2": float(k_value),
+        }
+
+    visited = np.zeros_like(contact_mask, dtype=bool)
+    radii: list[float] = []
+    conductances: list[float] = []
+
+    contact_indices = np.argwhere(contact_mask)
+    for i0, j0 in contact_indices:
+        i0 = int(i0)
+        j0 = int(j0)
+        if visited[i0, j0]:
+            continue
+
+        stack = [(i0, j0)]
+        visited[i0, j0] = True
+        nodes: list[tuple[int, int]] = []
+
+        while stack:
+            i, j = stack.pop()
+            nodes.append((i, j))
+            for ii, jj in _contact_neighbors_8(i, j, nx, ny):
+                if contact_mask[ii, jj] and not visited[ii, jj]:
+                    visited[ii, jj] = True
+                    stack.append((ii, jj))
+
+        spot_area = len(nodes) * dx * dy
+        # Equivalent radius used in Li et al.'s film-plus-constriction model.
+        r_eq = float(np.sqrt(max(spot_area, 0.0) / np.pi))
+        specific_resistance = film_specific_resistance + config.rho_elastic * np.pi * r_eq / 2.0
+        k_value = 1.0 / specific_resistance
+
+        for i, j in nodes:
+            k_map[i, j] = k_value
+
+        radii.append(r_eq)
+        conductances.append(float(k_value))
+
+    radii_arr = np.asarray(radii, dtype=float)
+    k_arr = np.asarray(conductances, dtype=float)
+    return k_map, {
+        "electrical_contact_clusters": int(len(radii)),
+        "electrical_min_spot_radius_m": float(np.min(radii_arr)),
+        "electrical_max_spot_radius_m": float(np.max(radii_arr)),
+        "electrical_mean_spot_radius_m": float(np.mean(radii_arr)),
+        "electrical_min_kE_S_per_m2": float(np.min(k_arr)),
+        "electrical_max_kE_S_per_m2": float(np.max(k_arr)),
+    }
+
 def run_electrical_analysis(pressure_map: np.ndarray, verbose: bool = True):
     """Solve the electrical fixed-point problem on the real contact mask.
 
@@ -67,12 +171,26 @@ def run_electrical_analysis(pressure_map: np.ndarray, verbose: bool = True):
     delta_v = config.Delta_V_total
     rho = config.rho_elastic
     h0 = config.h0
-    k_E = 1.0 / (config.rho_film * config.l_film)
+    k_E, k_stats = build_contact_conductance_map(pressure_map)
     relaxation = config.electrical_relaxation
 
     if verbose:
         print("\n--- Electrical field solve ---")
-        print(f"  > Interfacial film conductance k_E: {k_E:.3e} S/m^2")
+        if bool(getattr(config, "include_constriction_resistance", False)):
+            print("  > Interfacial conductance model: film + constriction")
+            print(f"  > Contact spots for k_E: {k_stats['electrical_contact_clusters']}")
+            print(
+                "  > Equivalent spot radius range: "
+                f"{k_stats['electrical_min_spot_radius_m'] * 1e6:.3g}--"
+                f"{k_stats['electrical_max_spot_radius_m'] * 1e6:.3g} um"
+            )
+            print(
+                "  > Interfacial conductance k_E range: "
+                f"{k_stats['electrical_min_kE_S_per_m2']:.3e}--"
+                f"{k_stats['electrical_max_kE_S_per_m2']:.3e} S/m^2"
+            )
+        else:
+            print(f"  > Interfacial film conductance k_E: {k_stats['electrical_max_kE_S_per_m2']:.3e} S/m^2")
 
     contact_mask = pressure_map > 0.0
     if not np.any(contact_mask):

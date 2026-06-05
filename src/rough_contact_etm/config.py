@@ -34,14 +34,22 @@ l_film = 10e-9  # effective film thickness [m]
 # Layer height used by the electrical and thermal Green's functions
 h0 = 2e-3  # [m]
 
+# Electrical contact conductance model
+# If True, use the Li et al. film-plus-constriction specific contact resistance
+#     R_A,j = rho_film * l_film + rho_elastic * pi * r_j / 2
+# for every connected contact spot j, where r_j = sqrt(A_j / pi).
+# If False, use the thin-film-only model R_A = rho_film * l_film.
+include_constriction_resistance = True
+
+
 # -----------------------------------------------------------------------------
 # Simulation controls
 # -----------------------------------------------------------------------------
 F_min = 50.0  # minimum normal load [N]
-F_max = 3000.0  # maximum normal load [N]
+F_max = 10000.0  # maximum normal load [N]
 n_x = 512
 n_y = 512
-N_LOAD_STEPS = 20
+N_LOAD_STEPS = 40
 Delta_V_total = 0.1  # applied voltage drop [V]
 
 # Mechanical solver controls
@@ -84,6 +92,8 @@ def validate() -> None:
         raise ValueError("E_elastic must be positive.")
     if not (0.0 <= nu_elastic < 0.5):
         raise ValueError("nu_elastic must satisfy 0 <= nu < 0.5.")
+    if rho_elastic <= 0:
+        raise ValueError("rho_elastic must be positive.")
     if rho_film <= 0 or l_film <= 0:
         raise ValueError("rho_film and l_film must be positive.")
     if h0 <= 0:

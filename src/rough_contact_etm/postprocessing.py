@@ -28,6 +28,40 @@ def parse_load_from_filename(path: str) -> float:
     return float(match.group(1))
 
 
+
+
+def _temperature_field_is_valid(temperature: np.ndarray) -> bool:
+    """Return True when a stored temperature field is finite and numerically sane."""
+    if temperature.size == 0:
+        return False
+    if not np.all(np.isfinite(temperature)):
+        return False
+    # Temperatures much above this threshold are not credible for this reduced
+    # model and usually indicate a corrupted HDF5 custom-field dump.
+    return float(np.nanmax(np.abs(temperature))) < 1.0e12
+
+
+def _read_temperature_or_recompute(h5_data: h5py.File, data_filepath: str) -> np.ndarray:
+    """Read temperature, or reconstruct it from heat_flux if the stored field is corrupt."""
+    temperature = None
+    if "temperature" in h5_data:
+        temperature = np.asarray(h5_data["temperature"][:], dtype=float)
+        if _temperature_field_is_valid(temperature):
+            return temperature
+
+    if "heat_flux" not in h5_data:
+        raise ValueError(f"No valid temperature dataset and no heat_flux dataset in {data_filepath}")
+
+    from .thermal import solve_thermal_field
+
+    heat_flux = np.asarray(h5_data["heat_flux"][:], dtype=float)
+    temperature, _ = solve_thermal_field(heat_flux)
+    if "temperature" in h5_data:
+        del h5_data["temperature"]
+    h5_data.create_dataset("temperature", data=temperature)
+    print(f"  > Recomputed and repaired corrupted temperature dataset in: {data_filepath}")
+    return temperature
+
 def extract_scan_data(attr_files: list[str]) -> dict[str, list[float]]:
     """Extract scalar scan data from HDF5 attribute and field-data file pairs."""
     print(f"--- Extracting data from {len(attr_files)} file pairs ---")
@@ -61,8 +95,8 @@ def extract_scan_data(attr_files: list[str]) -> dict[str, list[float]]:
                 stored_current = h5_attr.attrs.get("total_current_A", np.nan)
                 stored_resistance = h5_attr.attrs.get("ECR_ohm", np.nan)
 
-            with h5py.File(data_filepath, "r") as h5_data:
-                temperature = np.asarray(h5_data["temperature"][:], dtype=float)
+            with h5py.File(data_filepath, "r+") as h5_data:
+                temperature = _read_temperature_or_recompute(h5_data, data_filepath)
                 current_density = np.asarray(h5_data["current_density"][:], dtype=float)
 
             total_current = float(stored_current) if np.isfinite(stored_current) else float(np.nansum(current_density) * dA)
@@ -155,8 +189,8 @@ def plot_2d_fields(attr_filepath: str, plot_dir: str) -> None:
         print(f"  > WARNING: field-data file not found: {data_filepath}")
         return
 
-    with h5py.File(data_filepath, "r") as h5:
-        temperature = np.asarray(h5["temperature"][:], dtype=float)
+    with h5py.File(data_filepath, "r+") as h5:
+        temperature = _read_temperature_or_recompute(h5, data_filepath)
         current_density = np.asarray(h5["current_density"][:], dtype=float)
         pressure = np.asarray(h5["traction"][:], dtype=float)
 
